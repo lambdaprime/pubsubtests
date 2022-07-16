@@ -1,0 +1,8 @@
+**/bin/
+**/build/
+**/.gradle/
+**/.settings/
+**/src/gen/
+**/.project
+**/.classpath
+/**/release/*-SNAPSHOT.zip
