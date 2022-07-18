@@ -18,16 +18,16 @@
 package id.pubsubtests;
 
 import id.xfunction.concurrent.SameThreadExecutorService;
-import id.xfunction.concurrent.flow.SimpleSubscriber;
+import id.xfunction.concurrent.flow.CollectorSubscriber;
 import id.xfunction.lang.XThread;
 import java.util.ArrayList;
-import java.util.List;
-import java.util.concurrent.CompletableFuture;
+import java.util.HashSet;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.SubmissionPublisher;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
@@ -36,6 +36,7 @@ import org.junit.jupiter.params.provider.MethodSource;
  *
  * @author lambdaprime intid@protonmail.com
  */
+@Nested
 public abstract class PubSubClientTests {
 
     public record TestCase(Supplier<TestPubSubClient> clientFactory) {}
@@ -61,28 +62,18 @@ public abstract class PubSubClientTests {
     @MethodSource("dataProvider")
     public void test_multiple_subscribers_same_topic(TestCase testCase) throws Exception {
         var maxNumOfMessages = 15;
-        class MySubscriber extends SimpleSubscriber<String> {
-            List<String> received = new ArrayList<>();
-            CompletableFuture<Void> future = new CompletableFuture<>();
-
-            @Override
-            public void onNext(String item) {
-                System.out.println(item);
-                received.add(item);
-                if (received.size() == maxNumOfMessages) {
-                    getSubscription().get().cancel();
-                    future.complete(null);
-                } else {
-                    getSubscription().get().request(1);
-                }
-            }
-        }
         try (var subscriberClient = testCase.clientFactory.get();
                 var publisherClient = testCase.clientFactory.get(); ) {
             String topic = "testTopic1";
             var publisher = new SubmissionPublisher<String>();
             publisherClient.publish(topic, publisher);
-            var subscribers = Stream.generate(MySubscriber::new).limit(3).toList();
+            var subscribers =
+                    Stream.generate(
+                                    () ->
+                                            new CollectorSubscriber<>(
+                                                    new ArrayList<String>(), maxNumOfMessages))
+                            .limit(3)
+                            .toList();
             subscribers.forEach(sub -> subscriberClient.subscribe(topic, sub));
             var expected = new ArrayList<>();
             ForkJoinPool.commonPool()
@@ -96,8 +87,8 @@ public abstract class PubSubClientTests {
                                 }
                             });
             for (var sub : subscribers) {
-                sub.future.get();
-                Assertions.assertEquals(expected, sub.received);
+                var data = sub.getFuture().get();
+                Assertions.assertEquals(expected, data);
             }
         }
     }
@@ -107,29 +98,20 @@ public abstract class PubSubClientTests {
     public void test_publish_forever(TestCase testCase) throws Exception {
         try (var subscriberClient = testCase.clientFactory.get();
                 var publisherClient = testCase.clientFactory.get(); ) {
-            var future = new CompletableFuture<String>();
             String topic = "testTopic1";
             var publisher = new SubmissionPublisher<String>();
             String data = "hello";
             publisherClient.publish(topic, publisher);
-            subscriberClient.subscribe(
-                    topic,
-                    new SimpleSubscriber<String>() {
-                        @Override
-                        public void onNext(String item) {
-                            System.out.println(item);
-                            getSubscription().get().cancel();
-                            future.complete(item);
-                        }
-                    });
+            var collector = new CollectorSubscriber<>(new ArrayList<String>(), 1);
+            subscriberClient.subscribe(topic, collector);
             ForkJoinPool.commonPool()
                     .execute(
                             () -> {
-                                while (!future.isDone()) {
+                                while (!collector.getFuture().isDone()) {
                                     publisher.submit(data);
                                 }
                             });
-            Assertions.assertEquals(data, future.get());
+            Assertions.assertEquals(data, collector.getFuture().get().get(0));
         }
     }
 
@@ -138,41 +120,26 @@ public abstract class PubSubClientTests {
     public void test_publish_order(TestCase testCase) throws Exception {
         try (var subscriberClient = testCase.clientFactory.get();
                 var publisherClient = testCase.clientFactory.get(); ) {
-            var future = new CompletableFuture<List<Integer>>();
             String topic = "/testTopic1";
             var publisher = new SubmissionPublisher<String>(new SameThreadExecutorService(), 1);
             publisherClient.publish(topic, publisher);
-            subscriberClient.subscribe(
-                    topic,
-                    new SimpleSubscriber<String>() {
-                        List<Integer> data = new ArrayList<>();
-
-                        @Override
-                        public void onNext(String item) {
-                            System.out.println(item);
-                            data.add(Integer.parseInt(item));
-                            if (data.size() == 50) {
-                                getSubscription().get().cancel();
-                                future.complete(data);
-                            } else {
-                                getSubscription().get().request(1);
-                            }
-                        }
-                    });
+            var collector = new CollectorSubscriber<>(new ArrayList<String>(), 50);
+            subscriberClient.subscribe(topic, collector);
             ForkJoinPool.commonPool()
                     .execute(
                             () -> {
                                 int c = 0;
-                                while (!future.isDone()) {
+                                while (!collector.getFuture().isDone()) {
                                     var msg = "" + c++;
                                     System.out.println("          " + msg);
                                     publisher.submit(msg);
                                 }
                             });
-            var received = future.get();
-            var start = received.get(0);
-            for (int i = 0; i < received.size(); i++) {
-                Assertions.assertEquals(start + i, received.get(i));
+            var received =
+                    collector.getFuture().get().stream().mapToInt(Integer::parseInt).toArray();
+            var start = received[0];
+            for (int i = 0; i < received.length; i++) {
+                Assertions.assertEquals(start + i, received[i]);
             }
         }
     }
@@ -182,26 +149,44 @@ public abstract class PubSubClientTests {
     public void test_publish_single_message(TestCase testCase) throws Exception {
         try (var subscriberClient = testCase.clientFactory.get();
                 var publisherClient = testCase.clientFactory.get(); ) {
-            var future = new CompletableFuture<String>();
             String topic = "testTopic1";
             var publisher = new SubmissionPublisher<String>();
             String data = "hello";
             publisherClient.publish(topic, publisher);
-            subscriberClient.subscribe(
-                    topic,
-                    new SimpleSubscriber<String>() {
-                        @Override
-                        public void onNext(String item) {
-                            System.out.println(item);
-                            getSubscription().get().cancel();
-                            future.complete(data);
-                        }
-                    });
+            var collector = new CollectorSubscriber<>(new ArrayList<String>(), 1);
+            subscriberClient.subscribe(topic, collector);
             // wait so that subscriber get time to register with ROS
             XThread.sleep(1000);
             publisher.submit(data);
-            future.get();
-            Assertions.assertEquals(data, future.get());
+            Assertions.assertEquals(data, collector.getFuture().get().get(0));
+        }
+    }
+
+    @ParameterizedTest
+    @MethodSource("dataProvider")
+    public void test_multiple_publishers(TestCase testCase) throws Exception {
+        String topic = "/testTopic1";
+        try (var subscriberClient = testCase.clientFactory.get();
+                var publisherClient1 = testCase.clientFactory.get();
+                var publisherClient2 = testCase.clientFactory.get();
+                var publisher1 = new SubmissionPublisher<String>();
+                var publisher2 = new SubmissionPublisher<String>()) {
+            publisherClient1.publish(topic, publisher1);
+            publisherClient2.publish(topic, publisher2);
+            var collector = new CollectorSubscriber<>(new HashSet<String>(), 2);
+            subscriberClient.subscribe(topic, collector);
+            ForkJoinPool.commonPool()
+                    .execute(
+                            () -> {
+                                while (!collector.getFuture().isDone()) {
+                                    var msg1 = "1";
+                                    var msg2 = "2";
+                                    publisher1.submit(msg1);
+                                    publisher2.submit(msg2);
+                                }
+                            });
+            Assertions.assertEquals(
+                    "[1, 2]", collector.getFuture().get().stream().sorted().toList().toString());
         }
     }
 }
