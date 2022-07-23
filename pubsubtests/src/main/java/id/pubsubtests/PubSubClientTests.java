@@ -155,7 +155,7 @@ public abstract class PubSubClientTests {
             publisherClient.publish(topic, publisher);
             var collector = new CollectorSubscriber<>(new ArrayList<String>(), 1);
             subscriberClient.subscribe(topic, collector);
-            // wait so that subscriber get time to register with ROS
+            // to discover subscriber should take less than 1sec
             XThread.sleep(1000);
             publisher.submit(data);
             Assertions.assertEquals(data, collector.getFuture().get().get(0));
@@ -187,6 +187,35 @@ public abstract class PubSubClientTests {
                             });
             Assertions.assertEquals(
                     "[1, 2]", collector.getFuture().get().stream().sorted().toList().toString());
+        }
+    }
+
+    /** Test that publisher delivers messages which are in its queue before it is being closed. */
+    @ParameterizedTest
+    @MethodSource("dataProvider")
+    public void test_publisher_on_close(TestCase testCase) throws Exception {
+        int totalNumOfMessages = 10;
+        var received = new ArrayList<String>();
+        var collector = new CollectorSubscriber<>(received, totalNumOfMessages);
+        try (var subscriberClient = testCase.clientFactory.get();
+                var publisherClient = testCase.clientFactory.get();
+                // disable any buffering for user publisher so that all messages go directly to
+                // client
+                var publisher =
+                        new SubmissionPublisher<String>(new SameThreadExecutorService(), 1)) {
+            String topic = "testTopic1";
+            String data = "hello";
+            publisherClient.publish(topic, publisher);
+            subscriberClient.subscribe(topic, collector);
+            publisher.submit(data);
+            // sleep until subscriber is discovered by publisher
+            while (received.isEmpty()) XThread.sleep(100);
+
+            for (int i = 1; i < totalNumOfMessages; i++) {
+                publisher.submit(data);
+            }
+            publisherClient.close();
+            Assertions.assertEquals(totalNumOfMessages, collector.getFuture().get().size());
         }
     }
 }
