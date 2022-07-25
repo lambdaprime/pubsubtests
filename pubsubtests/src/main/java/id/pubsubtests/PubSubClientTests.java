@@ -19,6 +19,7 @@ package id.pubsubtests;
 
 import id.xfunction.concurrent.SameThreadExecutorService;
 import id.xfunction.concurrent.flow.CollectorSubscriber;
+import id.xfunction.concurrent.flow.FixedCollectorSubscriber;
 import id.xfunction.lang.XThread;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -70,7 +71,7 @@ public abstract class PubSubClientTests {
             var subscribers =
                     Stream.generate(
                                     () ->
-                                            new CollectorSubscriber<>(
+                                            new FixedCollectorSubscriber<>(
                                                     new ArrayList<String>(), maxNumOfMessages))
                             .limit(3)
                             .toList();
@@ -102,7 +103,7 @@ public abstract class PubSubClientTests {
             var publisher = new SubmissionPublisher<String>();
             String data = "hello";
             publisherClient.publish(topic, publisher);
-            var collector = new CollectorSubscriber<>(new ArrayList<String>(), 1);
+            var collector = new FixedCollectorSubscriber<>(new ArrayList<String>(), 1);
             subscriberClient.subscribe(topic, collector);
             ForkJoinPool.commonPool()
                     .execute(
@@ -123,7 +124,7 @@ public abstract class PubSubClientTests {
             String topic = "/testTopic1";
             var publisher = new SubmissionPublisher<String>(new SameThreadExecutorService(), 1);
             publisherClient.publish(topic, publisher);
-            var collector = new CollectorSubscriber<>(new ArrayList<String>(), 50);
+            var collector = new FixedCollectorSubscriber<>(new ArrayList<String>(), 50);
             subscriberClient.subscribe(topic, collector);
             ForkJoinPool.commonPool()
                     .execute(
@@ -153,7 +154,7 @@ public abstract class PubSubClientTests {
             var publisher = new SubmissionPublisher<String>();
             String data = "hello";
             publisherClient.publish(topic, publisher);
-            var collector = new CollectorSubscriber<>(new ArrayList<String>(), 1);
+            var collector = new FixedCollectorSubscriber<>(new ArrayList<String>(), 1);
             subscriberClient.subscribe(topic, collector);
             // to discover subscriber should take less than 1sec
             XThread.sleep(1000);
@@ -173,7 +174,7 @@ public abstract class PubSubClientTests {
                 var publisher2 = new SubmissionPublisher<String>()) {
             publisherClient1.publish(topic, publisher1);
             publisherClient2.publish(topic, publisher2);
-            var collector = new CollectorSubscriber<>(new HashSet<String>(), 2);
+            var collector = new FixedCollectorSubscriber<>(new HashSet<String>(), 2);
             subscriberClient.subscribe(topic, collector);
             ForkJoinPool.commonPool()
                     .execute(
@@ -194,9 +195,8 @@ public abstract class PubSubClientTests {
     @ParameterizedTest
     @MethodSource("dataProvider")
     public void test_publisher_on_close(TestCase testCase) throws Exception {
-        int totalNumOfMessages = 10;
         var received = new ArrayList<String>();
-        var collector = new CollectorSubscriber<>(received, totalNumOfMessages);
+        var collector = new CollectorSubscriber<>(received);
         try (var subscriberClient = testCase.clientFactory.get();
                 var publisherClient = testCase.clientFactory.get();
                 // disable any buffering for user publisher so that all messages go directly to
@@ -207,15 +207,15 @@ public abstract class PubSubClientTests {
             String data = "hello";
             publisherClient.publish(topic, publisher);
             subscriberClient.subscribe(topic, collector);
-            publisher.submit(data);
-            // sleep until subscriber is discovered by publisher
-            while (received.isEmpty()) XThread.sleep(100);
-
-            for (int i = 1; i < totalNumOfMessages; i++) {
-                publisher.submit(data);
+            var c = 0;
+            while (received.isEmpty()) {
+                for (int i = 1; i < 10; i++) {
+                    publisher.submit(data + ++c);
+                }
+                XThread.sleep(100);
             }
             publisherClient.close();
-            Assertions.assertEquals(totalNumOfMessages, collector.getFuture().get().size());
+            Assertions.assertEquals(data + c, received.get(received.size() - 1));
         }
     }
 }
