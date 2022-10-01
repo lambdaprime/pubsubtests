@@ -23,8 +23,10 @@ import id.xfunction.concurrent.flow.FixedCollectorSubscriber;
 import id.xfunction.lang.XThread;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.concurrent.Executors;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.SubmissionPublisher;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Assertions;
@@ -156,7 +158,7 @@ public abstract class PubSubClientTests {
             publisherClient.publish(topic, publisher);
             var collector = new FixedCollectorSubscriber<>(new ArrayList<String>(), 1);
             subscriberClient.subscribe(topic, collector);
-            // to discover subscriber should take less than 1sec
+            // putting random delay
             XThread.sleep(1000);
             publisher.submit(data);
             Assertions.assertEquals(data, collector.getFuture().get().get(0));
@@ -176,18 +178,22 @@ public abstract class PubSubClientTests {
             publisherClient2.publish(topic, publisher2);
             var collector = new FixedCollectorSubscriber<>(new HashSet<String>(), 2);
             subscriberClient.subscribe(topic, collector);
-            ForkJoinPool.commonPool()
-                    .execute(
-                            () -> {
-                                while (!collector.getFuture().isDone()) {
-                                    var msg1 = "1";
-                                    var msg2 = "2";
-                                    publisher1.submit(msg1);
-                                    publisher2.submit(msg2);
-                                }
-                            });
+            var executor = Executors.newSingleThreadExecutor();
+            executor.execute(
+                    () -> {
+                        while (!collector.getFuture().isDone()) {
+                            var msg1 = "1";
+                            var msg2 = "2";
+                            publisher1.submit(msg1);
+                            publisher2.submit(msg2);
+                        }
+                    });
             Assertions.assertEquals(
                     "[1, 2]", collector.getFuture().get().stream().sorted().toList().toString());
+            // terminating executor before closing the publisher to avoid race condition
+            // when executor tries to publish messages after the publisher already closed
+            executor.shutdown();
+            executor.awaitTermination(1, TimeUnit.MINUTES);
         }
     }
 
