@@ -147,9 +147,14 @@ public abstract class PubSubClientTests {
         }
     }
 
+    /**
+     * Test discovery time should not take more than N seconds. Discovery time it is time after both
+     * Publisher and Subscriber were registered and before first message can be received by the
+     * Subscriber
+     */
     @ParameterizedTest
     @MethodSource("dataProvider")
-    public void test_publish_single_message(TestCase testCase) throws Exception {
+    public void test_discovery_time(TestCase testCase) throws Exception {
         try (var subscriberClient = testCase.clientFactory.get();
                 var publisherClient = testCase.clientFactory.get(); ) {
             String topic = "testTopic1";
@@ -158,8 +163,8 @@ public abstract class PubSubClientTests {
             publisherClient.publish(topic, publisher);
             var collector = new FixedCollectorSubscriber<>(new ArrayList<String>(), 1);
             subscriberClient.subscribe(topic, collector);
-            // putting random delay
-            XThread.sleep(1000);
+            // to discover subscriber should take less than 5sec
+            XThread.sleep(5000);
             publisher.submit(data);
             Assertions.assertEquals(data, collector.getFuture().get().get(0));
         }
