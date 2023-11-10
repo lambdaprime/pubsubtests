@@ -21,9 +21,9 @@ import java.util.concurrent.Flow.Publisher;
 import java.util.concurrent.Flow.Subscriber;
 
 public interface TestPubSubClient extends AutoCloseable {
-    void subscribe(String topic, Subscriber<String> subscriber);
+    void subscribe(String topic, Subscriber<byte[]> subscriber);
 
-    void publish(String topic, Publisher<String> publisher);
+    void publish(String topic, Publisher<byte[]> publisher);
 
     @Override
     void close();
