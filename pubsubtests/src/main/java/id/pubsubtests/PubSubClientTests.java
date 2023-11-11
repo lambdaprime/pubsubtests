@@ -17,14 +17,24 @@
  */
 package id.pubsubtests;
 
+import id.xfunction.ResourceUtils;
 import id.xfunction.concurrent.SameThreadExecutorService;
 import id.xfunction.concurrent.flow.CollectorSubscriber;
 import id.xfunction.concurrent.flow.FixedCollectorSubscriber;
+import id.xfunction.concurrent.flow.SimpleSubscriber;
 import id.xfunction.concurrent.flow.TransformProcessor;
+import id.xfunction.function.Unchecked;
 import id.xfunction.lang.XThread;
+import id.xfunction.nio.file.XFiles;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.SubmissionPublisher;
@@ -38,6 +48,23 @@ import org.junit.jupiter.params.provider.MethodSource;
 
 /**
  * Collection of tests for {@link TestPubSubClient} implementations.
+ *
+ * <p>To use tests:
+ *
+ * <ul>
+ *   <li>Using client which is going to be tested implement {@link id.pubsubtests.TestPubSubClient}
+ *   <li>Create a JUnit test class for the client and let it extend {@link
+ *       id.pubsubtests.PubSubClientTests}
+ *   <li>Define dataProvider method:
+ *       <pre>{@code
+ * static Stream<TestCase> dataProvider() {
+ *      return Stream.of(new TestCase(RtpsTalkTestPubSubClient::new));
+ * }
+ * }</pre>
+ * </ul>
+ *
+ * <p>If some of the tests from {@link id.pubsubtests.PubSubClientTests} are irrelevant to the
+ * client which is being tested then their methods can be overridden in the test class.
  *
  * <p>To use tests:
  *
@@ -265,6 +292,96 @@ public abstract class PubSubClientTests {
             }
             publisherClient.close();
             Assertions.assertEquals(data + c, new String(received.get(received.size() - 1)));
+        }
+    }
+
+    @ParameterizedTest
+    @MethodSource("dataProvider")
+    public void test_publish_multiple_60kb_messages(TestCase testCase) throws Exception {
+        try (var subscriberClient = testCase.clientFactory.get();
+                var publisherClient = testCase.clientFactory.get();
+                var publisher =
+                        new SubmissionPublisher<byte[]>(new SameThreadExecutorService(), 1)) {
+            String topic = "testTopic1";
+            var imgFile = XFiles.TEMP_FOLDER.orElseThrow().resolve("alita");
+            if (!Files.exists(imgFile)) {
+                new ResourceUtils().extractResource("alita", imgFile);
+            }
+            var future = new CompletableFuture<Path>();
+            publisherClient.publish(topic, publisher);
+            subscriberClient.subscribe(
+                    topic,
+                    new SimpleSubscriber<>() {
+                        Path outputFile = Files.createTempFile("alita", "");
+                        int bytesLeft = (int) Files.size(imgFile);
+                        FileOutputStream fos = new FileOutputStream(outputFile.toFile());
+
+                        public void onNext(byte[] item) {
+                            try {
+                                fos.write(item, 0, Math.min(item.length, bytesLeft));
+                            } catch (IOException e) {
+                                e.printStackTrace();
+                            }
+                            var subscription = getSubscription().get();
+                            bytesLeft -= item.length;
+                            if (bytesLeft <= 0) {
+                                subscription.cancel();
+                                future.complete(outputFile);
+                                Unchecked.run(fos::close);
+                            }
+                            subscription.request(1);
+                        }
+                    });
+            try (var fis = new FileInputStream(imgFile.toFile())) {
+                Assertions.assertEquals(6_111_377, fis.available());
+                while (fis.available() != 0) {
+                    var buf = new byte[60_000];
+                    fis.read(buf);
+                    publisher.submit(buf);
+                }
+                System.out.println("Image sent");
+            }
+            var imgReceived = future.get();
+            Assertions.assertEquals(
+                    true, XFiles.isContentEqual(imgFile.toFile(), imgReceived.toFile()));
+        }
+    }
+
+    @ParameterizedTest
+    @MethodSource("dataProvider")
+    public void test_publish_single_message_over_5mb(TestCase testCase) throws Exception {
+        try (var subscriberClient = testCase.clientFactory.get();
+                var publisherClient = testCase.clientFactory.get();
+                var publisher =
+                        new SubmissionPublisher<byte[]>(new SameThreadExecutorService(), 1)) {
+            String topic = "testTopic1";
+            var imgFile = XFiles.TEMP_FOLDER.orElseThrow().resolve("alita");
+            if (!Files.exists(imgFile)) {
+                new ResourceUtils().extractResource("alita", imgFile);
+            }
+            var future = new CompletableFuture<Path>();
+            publisherClient.publish(topic, publisher);
+            subscriberClient.subscribe(
+                    topic,
+                    new SimpleSubscriber<>() {
+                        Path outputFile = Files.createTempFile("alita", "");
+
+                        public void onNext(byte[] item) {
+                            try (FileOutputStream fos = new FileOutputStream(outputFile.toFile())) {
+                                fos.write(item);
+                            } catch (IOException e) {
+                                e.printStackTrace();
+                            }
+                            subscription.cancel();
+                            future.complete(outputFile);
+                        }
+                    });
+            var data = Files.readAllBytes(imgFile);
+            Assertions.assertEquals(6_111_377, data.length);
+            publisher.submit(data);
+            var imgReceived = future.get();
+            Assertions.assertEquals(
+                    true, XFiles.isContentEqual(imgFile.toFile(), imgReceived.toFile()));
         }
     }
 }
