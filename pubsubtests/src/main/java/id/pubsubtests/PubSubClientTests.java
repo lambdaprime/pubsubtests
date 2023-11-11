@@ -17,7 +17,7 @@
  */
 package id.pubsubtests;
 
-import id.xfunction.ResourceUtils;
+import id.pubsubtests.impl.AlitaFileHelper;
 import id.xfunction.concurrent.SameThreadExecutorService;
 import id.xfunction.concurrent.flow.CollectorSubscriber;
 import id.xfunction.concurrent.flow.FixedCollectorSubscriber;
@@ -39,7 +39,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.SubmissionPublisher;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Supplier;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Nested;
@@ -57,7 +56,7 @@ import org.junit.jupiter.params.provider.MethodSource;
  *       id.pubsubtests.PubSubClientTests}
  *   <li>Define dataProvider method:
  *       <pre>{@code
- * static Stream<TestCase> dataProvider() {
+ * static Stream<PubSubClientTestCase> dataProvider() {
  *      return Stream.of(new TestCase(RtpsTalkTestPubSubClient::new));
  * }
  * }</pre>
@@ -89,26 +88,13 @@ import org.junit.jupiter.params.provider.MethodSource;
 public abstract class PubSubClientTests {
 
     /**
-     * Provides set of clients for testing.
-     *
-     * <p>This allows to test not only different client implementations but also different
-     * configurations for them. For example, each client which implements Publisher/Subscriber model
-     * may allow users to configure certain specific parameters (timeout, queue size, ...). With
-     * {@link TestCase} it is possible to test different combinations of these configurations (test
-     * when client has timeout = 10 and queue size = 1, timeout = 100 and queue size = 5, ...)
-     *
-     * @author lambdaprime intid@protonmail.com
-     */
-    public record TestCase(Supplier<TestPubSubClient> clientFactory) {}
-
-    /**
      * Test that publisher does not drop messages when there is no subscribers and will block
      * eventually accepting new ones,
      */
     @ParameterizedTest
     @MethodSource("dataProvider")
-    public void test_publish_when_no_subscribers(TestCase testCase) {
-        try (var publisherClient = testCase.clientFactory.get(); ) {
+    public void test_publish_when_no_subscribers(PubSubClientTestCase testCase) {
+        try (var publisherClient = testCase.clientFactory().get(); ) {
             String topic = "testTopic1";
             var publisher = new SubmissionPublisher<byte[]>();
             String data = "hello";
@@ -120,10 +106,11 @@ public abstract class PubSubClientTests {
 
     @ParameterizedTest
     @MethodSource("dataProvider")
-    public void test_multiple_subscribers_same_topic(TestCase testCase) throws Exception {
+    public void test_multiple_subscribers_same_topic(PubSubClientTestCase testCase)
+            throws Exception {
         var maxNumOfMessages = 15;
-        try (var subscriberClient = testCase.clientFactory.get();
-                var publisherClient = testCase.clientFactory.get(); ) {
+        try (var subscriberClient = testCase.clientFactory().get();
+                var publisherClient = testCase.clientFactory().get(); ) {
             String topic = "testTopic1";
             var publisher = new SubmissionPublisher<byte[]>();
             publisherClient.publish(topic, publisher);
@@ -155,9 +142,9 @@ public abstract class PubSubClientTests {
 
     @ParameterizedTest
     @MethodSource("dataProvider")
-    public void test_publish_forever(TestCase testCase) throws Exception {
-        try (var subscriberClient = testCase.clientFactory.get();
-                var publisherClient = testCase.clientFactory.get(); ) {
+    public void test_publish_forever(PubSubClientTestCase testCase) throws Exception {
+        try (var subscriberClient = testCase.clientFactory().get();
+                var publisherClient = testCase.clientFactory().get(); ) {
             String topic = "testTopic1";
             var publisher = new SubmissionPublisher<byte[]>();
             String data = "hello";
@@ -178,9 +165,9 @@ public abstract class PubSubClientTests {
 
     @ParameterizedTest
     @MethodSource("dataProvider")
-    public void test_publish_order(TestCase testCase) throws Exception {
-        try (var subscriberClient = testCase.clientFactory.get();
-                var publisherClient = testCase.clientFactory.get(); ) {
+    public void test_publish_order(PubSubClientTestCase testCase) throws Exception {
+        try (var subscriberClient = testCase.clientFactory().get();
+                var publisherClient = testCase.clientFactory().get(); ) {
             String topic = "/testTopic1";
             var publisher = new SubmissionPublisher<byte[]>(new SameThreadExecutorService(), 1);
             publisherClient.publish(topic, publisher);
@@ -215,9 +202,9 @@ public abstract class PubSubClientTests {
      */
     @ParameterizedTest
     @MethodSource("dataProvider")
-    public void test_discovery_time(TestCase testCase) throws Exception {
-        try (var subscriberClient = testCase.clientFactory.get();
-                var publisherClient = testCase.clientFactory.get(); ) {
+    public void test_discovery_time(PubSubClientTestCase testCase) throws Exception {
+        try (var subscriberClient = testCase.clientFactory().get();
+                var publisherClient = testCase.clientFactory().get(); ) {
             String topic = "testTopic1";
             var publisher = new SubmissionPublisher<byte[]>();
             String data = "hello";
@@ -234,11 +221,11 @@ public abstract class PubSubClientTests {
 
     @ParameterizedTest
     @MethodSource("dataProvider")
-    public void test_multiple_publishers(TestCase testCase) throws Exception {
+    public void test_multiple_publishers(PubSubClientTestCase testCase) throws Exception {
         String topic = "/testTopic1";
-        try (var subscriberClient = testCase.clientFactory.get();
-                var publisherClient1 = testCase.clientFactory.get();
-                var publisherClient2 = testCase.clientFactory.get();
+        try (var subscriberClient = testCase.clientFactory().get();
+                var publisherClient1 = testCase.clientFactory().get();
+                var publisherClient2 = testCase.clientFactory().get();
                 var publisher1 = new SubmissionPublisher<byte[]>();
                 var publisher2 = new SubmissionPublisher<byte[]>()) {
             publisherClient1.publish(topic, publisher1);
@@ -270,11 +257,11 @@ public abstract class PubSubClientTests {
     /** Test that publisher delivers messages which are in its queue before it is being closed. */
     @ParameterizedTest
     @MethodSource("dataProvider")
-    public void test_publisher_on_close(TestCase testCase) throws Exception {
+    public void test_publisher_on_close(PubSubClientTestCase testCase) throws Exception {
         var received = new ArrayList<byte[]>();
         var collector = new CollectorSubscriber<>(received);
-        try (var subscriberClient = testCase.clientFactory.get();
-                var publisherClient = testCase.clientFactory.get();
+        try (var subscriberClient = testCase.clientFactory().get();
+                var publisherClient = testCase.clientFactory().get();
                 // disable any buffering for user publisher so that all messages go directly to
                 // client
                 var publisher =
@@ -297,16 +284,14 @@ public abstract class PubSubClientTests {
 
     @ParameterizedTest
     @MethodSource("dataProvider")
-    public void test_publish_multiple_60kb_messages(TestCase testCase) throws Exception {
-        try (var subscriberClient = testCase.clientFactory.get();
-                var publisherClient = testCase.clientFactory.get();
+    public void test_publish_multiple_60kb_messages(PubSubClientTestCase testCase)
+            throws Exception {
+        try (var subscriberClient = testCase.clientFactory().get();
+                var publisherClient = testCase.clientFactory().get();
                 var publisher =
                         new SubmissionPublisher<byte[]>(new SameThreadExecutorService(), 1)) {
             String topic = "testTopic1";
-            var imgFile = XFiles.TEMP_FOLDER.orElseThrow().resolve("alita");
-            if (!Files.exists(imgFile)) {
-                new ResourceUtils().extractResource("alita", imgFile);
-            }
+            var imgFile = AlitaFileHelper.extractToTempFolderIfMissing();
             var future = new CompletableFuture<Path>();
             publisherClient.publish(topic, publisher);
             subscriberClient.subscribe(
@@ -333,7 +318,7 @@ public abstract class PubSubClientTests {
                         }
                     });
             try (var fis = new FileInputStream(imgFile.toFile())) {
-                Assertions.assertEquals(6_111_377, fis.available());
+                Assertions.assertEquals(AlitaFileHelper.SIZE_IN_BYTES, fis.available());
                 while (fis.available() != 0) {
                     var buf = new byte[60_000];
                     fis.read(buf);
@@ -341,7 +326,10 @@ public abstract class PubSubClientTests {
                 }
                 System.out.println("Image sent");
             }
-            var imgReceived = future.get();
+            var imgReceived =
+                    Assertions.assertTimeout(
+                            testCase.expected_timeout_test_publish_multiple_60kb_messages(),
+                            () -> future.get());
             Assertions.assertEquals(
                     true, XFiles.isContentEqual(imgFile.toFile(), imgReceived.toFile()));
         }
@@ -349,16 +337,14 @@ public abstract class PubSubClientTests {
 
     @ParameterizedTest
     @MethodSource("dataProvider")
-    public void test_publish_single_message_over_5mb(TestCase testCase) throws Exception {
-        try (var subscriberClient = testCase.clientFactory.get();
-                var publisherClient = testCase.clientFactory.get();
+    public void test_publish_single_message_over_5mb(PubSubClientTestCase testCase)
+            throws Exception {
+        try (var subscriberClient = testCase.clientFactory().get();
+                var publisherClient = testCase.clientFactory().get();
                 var publisher =
                         new SubmissionPublisher<byte[]>(new SameThreadExecutorService(), 1)) {
             String topic = "testTopic1";
-            var imgFile = XFiles.TEMP_FOLDER.orElseThrow().resolve("alita");
-            if (!Files.exists(imgFile)) {
-                new ResourceUtils().extractResource("alita", imgFile);
-            }
+            var imgFile = AlitaFileHelper.extractToTempFolderIfMissing();
             var future = new CompletableFuture<Path>();
             publisherClient.publish(topic, publisher);
             subscriberClient.subscribe(
@@ -377,9 +363,12 @@ public abstract class PubSubClientTests {
                         }
                     });
             var data = Files.readAllBytes(imgFile);
-            Assertions.assertEquals(6_111_377, data.length);
+            Assertions.assertEquals(AlitaFileHelper.SIZE_IN_BYTES, data.length);
             publisher.submit(data);
-            var imgReceived = future.get();
+            var imgReceived =
+                    Assertions.assertTimeout(
+                            testCase.expected_timeout_test_publish_single_message_over_5mb(),
+                            () -> future.get());
             Assertions.assertEquals(
                     true, XFiles.isContentEqual(imgFile.toFile(), imgReceived.toFile()));
         }
