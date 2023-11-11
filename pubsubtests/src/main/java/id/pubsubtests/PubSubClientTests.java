@@ -31,6 +31,8 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Optional;
@@ -326,10 +328,14 @@ public abstract class PubSubClientTests {
                 }
                 System.out.println("Image sent");
             }
+            var startAt = Instant.now();
             var imgReceived =
                     Assertions.assertTimeout(
-                            testCase.expected_timeout_test_publish_multiple_60kb_messages(),
+                            testCase.test_publish_multiple_60kb_messages_expected_timeout(),
                             () -> future.get());
+            System.out.println(
+                    "Receive time test_publish_multiple_60kb_messages: "
+                            + Duration.between(startAt, Instant.now()));
             Assertions.assertEquals(
                     true, XFiles.isContentEqual(imgFile.toFile(), imgReceived.toFile()));
         }
@@ -365,12 +371,61 @@ public abstract class PubSubClientTests {
             var data = Files.readAllBytes(imgFile);
             Assertions.assertEquals(AlitaFileHelper.SIZE_IN_BYTES, data.length);
             publisher.submit(data);
+            var startAt = Instant.now();
             var imgReceived =
                     Assertions.assertTimeout(
-                            testCase.expected_timeout_test_publish_single_message_over_5mb(),
+                            testCase.test_publish_single_message_over_5mb_expected_timeout(),
                             () -> future.get());
+            System.out.println(
+                    "Receive time test_publish_single_message_over_5mb: "
+                            + Duration.between(startAt, Instant.now()));
             Assertions.assertEquals(
                     true, XFiles.isContentEqual(imgFile.toFile(), imgReceived.toFile()));
+        }
+    }
+
+    /**
+     * Constantly publish messages over 5mb for period of 1 minute. Assert how many messages
+     * Subscriber received.
+     */
+    @ParameterizedTest
+    @MethodSource("dataProvider")
+    public void test_throutput(PubSubClientTestCase testCase) throws Exception {
+        try (var subscriberClient = testCase.clientFactory().get();
+                var publisherClient = testCase.clientFactory().get();
+                var publisher =
+                        new SubmissionPublisher<byte[]>(new SameThreadExecutorService(), 1)) {
+            String topic = "testTopic1";
+            var imgFile = AlitaFileHelper.extractToTempFolderIfMissing();
+            var future =
+                    new CompletableFuture<Boolean>().completeOnTimeout(true, 1, TimeUnit.MINUTES);
+            var count = new int[1];
+            publisherClient.publish(topic, publisher);
+            subscriberClient.subscribe(
+                    topic,
+                    new SimpleSubscriber<>() {
+                        public void onNext(byte[] item) {
+                            System.out.println("Received message" + count[0]);
+                            if (AlitaFileHelper.isEquals(item)) count[0]++;
+                            else future.complete(false);
+                            if (future.isDone()) {
+                                System.out.println("Cancel subscription");
+                                subscription.cancel();
+                            } else subscription.request(1);
+                        }
+                    });
+            var data = Files.readAllBytes(imgFile);
+            Assertions.assertEquals(AlitaFileHelper.SIZE_IN_BYTES, data.length);
+            while (!future.isDone()) {
+                publisher.submit(data);
+                XThread.sleep(300);
+                System.out.println("Sent message");
+            }
+            System.out.println("Stop publishing");
+            Assertions.assertEquals(true, future.get());
+            System.out.println("Received number of messages test_throutput: " + count[0]);
+            Assertions.assertEquals(0,
+                    count[0] - testCase.test_throutput_expected_message_count());
         }
     }
 }

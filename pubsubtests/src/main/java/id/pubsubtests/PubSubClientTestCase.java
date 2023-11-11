@@ -30,8 +30,9 @@ import java.util.function.Supplier;
  */
 public record PubSubClientTestCase(
         Supplier<TestPubSubClient> clientFactory,
-        Duration expected_timeout_test_publish_multiple_60kb_messages,
-        Duration expected_timeout_test_publish_single_message_over_5mb) {
+        Duration test_publish_multiple_60kb_messages_expected_timeout,
+        Duration test_publish_single_message_over_5mb_expected_timeout,
+        int test_throutput_expected_message_count) {
 
     /**
      * Client factory which produce new instance of same client implementation with same
