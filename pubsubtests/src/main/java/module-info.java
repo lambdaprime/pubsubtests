@@ -19,6 +19,19 @@
  * Generic tests for clients with Publisher/Subscriber model. Tests are performed against the client
  * itself. They validate that Publisher and Subscriber can interact with each other.
  *
+ * <p>To use tests:
+ *
+ * <ul>
+ *   <li>Using client which is going to be tested implement {@link id.pubsubtests.TestPubSubClient}
+ *   <li>Create a JUnit test class for the client and let it extend any of the available test
+ *       classes: {@link id.pubsubtests.PubSubClientTests}, {@link
+ *       id.pubsubtests.PubSubClientThroughputTests}
+ *   <li>Define dataProvider method (see extended test class documentation for details)
+ * </ul>
+ *
+ * <p>If some of the tests from any extended test classes are irrelevant to the client which is
+ * being tested then their methods can be overridden in the actual test class itself.
+ *
  * @author lambdaprime intid@protonmail.com
  */
 open module pubsubtests {

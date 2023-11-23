@@ -17,7 +17,6 @@
  */
 package id.pubsubtests;
 
-import java.time.Duration;
 import java.util.function.Supplier;
 
 /**
@@ -28,11 +27,13 @@ import java.util.function.Supplier;
  *     href="https://junit.org/junit5/docs/current/user-guide/#writing-tests-parameterized-tests">Parameterized
  *     Tests</a>
  */
-public record PubSubClientTestCase(
-        Supplier<TestPubSubClient> clientFactory,
-        Duration test_publish_multiple_60kb_messages_expected_timeout,
-        Duration test_publish_single_message_over_5mb_expected_timeout,
-        int test_throutput_expected_message_count) {
+public class PubSubClientTestCase {
+
+    private Supplier<TestPubSubClient> clientFactory;
+
+    public PubSubClientTestCase(Supplier<TestPubSubClient> clientFactory) {
+        this.clientFactory = clientFactory;
+    }
 
     /**
      * Client factory which produce new instance of same client implementation with same
