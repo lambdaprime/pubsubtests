@@ -36,6 +36,7 @@ public class PubSubClientThroughputTestCase extends PubSubClientTestCase {
     private int expectedReceivedMessageCount;
     private Duration publishTimeout;
     private String testCaseName;
+    private boolean isReplayable;
 
     public PubSubClientThroughputTestCase(
             String testCaseName,
@@ -44,6 +45,7 @@ public class PubSubClientThroughputTestCase extends PubSubClientTestCase {
             int messageSizeInBytes,
             int maxCountOfPublishedMessages,
             Duration publishTimeout,
+            boolean isReplayable,
             int expectedReceivedMessageCount) {
         super(clientFactory);
         this.testCaseName = testCaseName;
@@ -51,7 +53,13 @@ public class PubSubClientThroughputTestCase extends PubSubClientTestCase {
         this.maxCountOfPublishedMessages = maxCountOfPublishedMessages;
         this.messageSizeInBytes = messageSizeInBytes;
         this.publishTimeout = publishTimeout;
+        this.isReplayable = isReplayable;
         this.expectedReceivedMessageCount = expectedReceivedMessageCount;
+    }
+
+    /** Published messages are replayed to late Subscribers */
+    public boolean isReplayable() {
+        return isReplayable;
     }
 
     public Duration getMaxTestDuration() {

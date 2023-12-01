@@ -58,13 +58,16 @@ public abstract class PubSubClientThroughputTests {
         private byte[] expectedData;
         private int messageCount;
         private int maxPublishedMessages;
+        private boolean isReplayable;
 
         public MySubscriber(
                 CompletableFuture<Boolean> future,
                 long seed,
+                boolean isReplayable,
                 int expectedMessageSizeInBytes,
                 int maxPublishedMessages) {
             this.future = future;
+            this.isReplayable = isReplayable;
             this.maxPublishedMessages = maxPublishedMessages;
             this.dataGenerator = new Random(seed);
             expectedData = new byte[expectedMessageSizeInBytes];
@@ -72,7 +75,11 @@ public abstract class PubSubClientThroughputTests {
 
         @Override
         public void onNext(byte[] item) {
-            dataGenerator.nextBytes(expectedData);
+            if (messageCount == 0 && !isReplayable) {
+                while (!Arrays.equals(item, expectedData)) {
+                    dataGenerator.nextBytes(expectedData);
+                }
+            } else dataGenerator.nextBytes(expectedData);
             if (Arrays.equals(item, expectedData)) {
                 messageCount++;
                 System.out.println("Received message" + messageCount);
@@ -113,6 +120,7 @@ public abstract class PubSubClientThroughputTests {
                     new MySubscriber(
                             future,
                             seed,
+                            testCase.isReplayable(),
                             testCase.getMessageSizeInBytes(),
                             testCase.getMaxCountOfPublishedMessages());
             publisherClient.publish(topic, publisher);
