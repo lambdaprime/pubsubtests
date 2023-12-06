@@ -17,15 +17,14 @@
  */
 package id.pubsubtests;
 
-import id.xfunction.concurrent.SameThreadExecutorService;
 import id.xfunction.concurrent.flow.SimpleSubscriber;
+import id.xfunction.concurrent.flow.SynchronousPublisher;
 import id.xfunction.lang.XThread;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.Random;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.SubmissionPublisher;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Nested;
@@ -104,8 +103,7 @@ public abstract class PubSubClientThroughputTests {
     public void test_throughput(PubSubClientThroughputTestCase testCase) throws Exception {
         try (var subscriberClient = testCase.clientFactory().get();
                 var publisherClient = testCase.clientFactory().get();
-                var publisher =
-                        new SubmissionPublisher<byte[]>(new SameThreadExecutorService(), 1)) {
+                var publisher = new SynchronousPublisher<byte[]>()) {
             String topic = "testTopic1";
             var seed = System.currentTimeMillis();
             var startAt = Instant.now();

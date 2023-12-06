@@ -17,10 +17,10 @@
  */
 package id.pubsubtests;
 
-import id.xfunction.concurrent.SameThreadExecutorService;
 import id.xfunction.concurrent.flow.CollectorSubscriber;
 import id.xfunction.concurrent.flow.FixedCollectorSubscriber;
-import id.xfunction.concurrent.flow.TransformProcessor;
+import id.xfunction.concurrent.flow.SynchronousPublisher;
+import id.xfunction.concurrent.flow.TransformSubscriber;
 import id.xfunction.lang.XThread;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -51,8 +51,8 @@ import org.junit.jupiter.params.provider.MethodSource;
 public abstract class PubSubClientTests {
 
     /**
-     * Test that publisher does not drop messages when there is no subscribers and will block
-     * eventually accepting new ones,
+     * Test that publisher does not drop messages when there is no subscribers and once its internal
+     * queue will be full, it eventually block to accept new ones.
      */
     @ParameterizedTest
     @MethodSource("dataProvider")
@@ -62,8 +62,12 @@ public abstract class PubSubClientTests {
             var publisher = new SubmissionPublisher<byte[]>();
             String data = "hello";
             publisherClient.publish(topic, publisher);
-            while (publisher.offer(data.getBytes(), null) >= 0)
-                ;
+            var queueSize = publisher.getMaxBufferCapacity() + 1;
+            // if messages are not dropped then publisher will eventually stop accepting messages
+            // method offer returns false when message cannot be added
+            while (publisher.offer(data.getBytes(), null) >= 0) queueSize--;
+            // expect no messages are lost
+            Assertions.assertEquals(0, queueSize);
         }
     }
 
@@ -106,10 +110,10 @@ public abstract class PubSubClientTests {
     @ParameterizedTest
     @MethodSource("dataProvider")
     public void test_publish_forever(PubSubClientTestCase testCase) throws Exception {
-        try (var subscriberClient = testCase.clientFactory().get();
-                var publisherClient = testCase.clientFactory().get(); ) {
+        try (var publisherClient = testCase.clientFactory().get();
+                var subscriberClient = testCase.clientFactory().get();
+                var publisher = new SubmissionPublisher<byte[]>(); ) {
             String topic = "testTopic1";
-            var publisher = new SubmissionPublisher<byte[]>();
             String data = "hello";
             publisherClient.publish(topic, publisher);
             var collector = new FixedCollectorSubscriber<>(new ArrayList<byte[]>(), 1);
@@ -132,7 +136,7 @@ public abstract class PubSubClientTests {
         try (var subscriberClient = testCase.clientFactory().get();
                 var publisherClient = testCase.clientFactory().get(); ) {
             String topic = "/testTopic1";
-            var publisher = new SubmissionPublisher<byte[]>(new SameThreadExecutorService(), 1);
+            var publisher = new SynchronousPublisher<byte[]>();
             publisherClient.publish(topic, publisher);
             var collector = new FixedCollectorSubscriber<>(new ArrayList<byte[]>(), 50);
             subscriberClient.subscribe(topic, collector);
@@ -195,8 +199,8 @@ public abstract class PubSubClientTests {
             publisherClient2.publish(topic, publisher2);
             var collector = new FixedCollectorSubscriber<>(new HashSet<String>(), 2);
             var trans =
-                    new TransformProcessor<byte[], String>(data -> Optional.of(new String(data)));
-            trans.subscribe(collector);
+                    new TransformSubscriber<byte[], String>(
+                            collector, data -> Optional.of(new String(data)));
             subscriberClient.subscribe(topic, trans);
             var executor = Executors.newSingleThreadExecutor();
             executor.execute(
@@ -227,8 +231,7 @@ public abstract class PubSubClientTests {
                 var publisherClient = testCase.clientFactory().get();
                 // disable any buffering for user publisher so that all messages go directly to
                 // client
-                var publisher =
-                        new SubmissionPublisher<byte[]>(new SameThreadExecutorService(), 1)) {
+                var publisher = new SynchronousPublisher<byte[]>()) {
             String topic = "testTopic1";
             String data = "hello";
             publisherClient.publish(topic, publisher);
