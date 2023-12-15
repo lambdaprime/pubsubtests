@@ -21,62 +21,58 @@ import java.time.Duration;
 import java.util.function.Supplier;
 
 /**
- * Describe test case configuration for {@link PubSubClientThroughputTests}
+ * Describe test case configuration for {@link PubSubClientLatencyTests}
  *
  * @author lambdaprime intid@protonmail.com
  * @see <a
  *     href="https://junit.org/junit5/docs/current/user-guide/#writing-tests-parameterized-tests">Parameterized
  *     Tests</a>
  */
-public class PubSubClientThroughputTestCase extends AbstractPubSubClientTestCase {
+public class PubSubClientLatencyTestCase extends AbstractPubSubClientTestCase {
 
     private Duration maxTestDuration;
-    private int maxCountOfPublishedMessages;
     private int messageSizeInBytes;
-    private int expectedReceivedMessageCount;
-    private Duration publishTimeout;
-    private boolean isReplayable;
+    private Duration expectedMaxLatency;
+    private Duration discoveryDuration;
+    private int expectedMinReceivedMessageCount;
 
-    public PubSubClientThroughputTestCase(
+    public PubSubClientLatencyTestCase(
             String testCaseName,
             Supplier<TestPubSubClient> clientFactory,
+            Duration discoveryDuration,
             Duration maxTestDuration,
             int messageSizeInBytes,
-            int maxCountOfPublishedMessages,
-            Duration publishTimeout,
-            boolean isReplayable,
-            int expectedReceivedMessageCount) {
+            Duration expectedMaxLatency,
+            int expectedMinReceivedMessageCount) {
         super(testCaseName, clientFactory);
+        this.discoveryDuration = discoveryDuration;
         this.maxTestDuration = maxTestDuration;
-        this.maxCountOfPublishedMessages = maxCountOfPublishedMessages;
         this.messageSizeInBytes = messageSizeInBytes;
-        this.publishTimeout = publishTimeout;
-        this.isReplayable = isReplayable;
-        this.expectedReceivedMessageCount = expectedReceivedMessageCount;
+        this.expectedMaxLatency = expectedMaxLatency;
+        this.expectedMinReceivedMessageCount = expectedMinReceivedMessageCount;
     }
 
-    /** Published messages are replayed to late Subscribers */
-    public boolean isReplayable() {
-        return isReplayable;
+    /**
+     * How much time to wait before start publishing first message. Discovery time it is time needed
+     * for Publisher and Subscriber to discover each other.
+     */
+    public Duration getDiscoveryDuration() {
+        return discoveryDuration;
     }
 
     public Duration getMaxTestDuration() {
         return maxTestDuration;
     }
 
-    public int getMaxCountOfPublishedMessages() {
-        return maxCountOfPublishedMessages;
-    }
-
     public int getMessageSizeInBytes() {
         return messageSizeInBytes;
     }
 
-    public int getExpectedMinReceivedMessageCount() {
-        return expectedReceivedMessageCount;
+    public Duration getExpectedMaxLatency() {
+        return expectedMaxLatency;
     }
 
-    public Duration getPublishTimeout() {
-        return publishTimeout;
+    public int getExpectedMinReceivedMessageCount() {
+        return expectedMinReceivedMessageCount;
     }
 }

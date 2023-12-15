@@ -59,13 +59,14 @@ public abstract class PubSubClientTests {
     public void test_publish_when_no_subscribers(PubSubClientTestCase testCase) {
         try (var publisherClient = testCase.clientFactory().get(); ) {
             String topic = "testTopic1";
-            var publisher = new SubmissionPublisher<byte[]>();
+            var publisher = new SubmissionPublisher<byte[]>(ForkJoinPool.commonPool(), 1);
             String data = "hello";
             publisherClient.publish(topic, publisher);
-            var queueSize = publisher.getMaxBufferCapacity() + 1;
+            var queueSize = testCase.getPublisherQueueSize() + publisher.getMaxBufferCapacity();
             // if messages are not dropped then publisher will eventually stop accepting messages
             // method offer returns false when message cannot be added
-            while (publisher.offer(data.getBytes(), null) >= 0) queueSize--;
+            while (publisher.offer(data.getBytes(), 10, TimeUnit.MILLISECONDS, null) >= 0)
+                queueSize--;
             // expect no messages are lost
             Assertions.assertEquals(0, queueSize);
         }
@@ -76,6 +77,8 @@ public abstract class PubSubClientTests {
     public void test_multiple_subscribers_same_topic(PubSubClientTestCase testCase)
             throws Exception {
         var maxNumOfMessages = 15;
+        // User owned Publishers are represented by Flow.Publisher interface and it has no close
+        // method
         try (var subscriberClient = testCase.clientFactory().get();
                 var publisherClient = testCase.clientFactory().get(); ) {
             String topic = "testTopic1";
@@ -99,6 +102,7 @@ public abstract class PubSubClientTests {
                                     expected.add(data);
                                     publisher.submit(data.getBytes());
                                 }
+                                publisher.close();
                             });
             for (var sub : subscribers) {
                 var data = sub.getFuture().get().stream().map(String::new).toList();
@@ -110,11 +114,13 @@ public abstract class PubSubClientTests {
     @ParameterizedTest
     @MethodSource("dataProvider")
     public void test_publish_forever(PubSubClientTestCase testCase) throws Exception {
+        // User owned Publishers are represented by Flow.Publisher interface and it has no close
+        // method
         try (var publisherClient = testCase.clientFactory().get();
-                var subscriberClient = testCase.clientFactory().get();
-                var publisher = new SubmissionPublisher<byte[]>(); ) {
+                var subscriberClient = testCase.clientFactory().get(); ) {
             String topic = "testTopic1";
             String data = "hello";
+            var publisher = new SubmissionPublisher<byte[]>();
             publisherClient.publish(topic, publisher);
             var collector = new FixedCollectorSubscriber<>(new ArrayList<byte[]>(), 1);
             subscriberClient.subscribe(topic, collector);
@@ -124,6 +130,7 @@ public abstract class PubSubClientTests {
                                 while (!collector.getFuture().isDone()) {
                                     publisher.submit(data.getBytes());
                                 }
+                                publisher.close();
                             });
             Assertions.assertEquals(
                     data, collector.getFuture().get().stream().map(String::new).findFirst().get());
@@ -178,8 +185,7 @@ public abstract class PubSubClientTests {
             publisherClient.publish(topic, publisher);
             var collector = new FixedCollectorSubscriber<>(new ArrayList<byte[]>(), 1);
             subscriberClient.subscribe(topic, collector);
-            // to discover subscriber should take less than 5sec
-            XThread.sleep(5000);
+            XThread.sleep(testCase.getDiscoveryDuration().toMillis());
             publisher.submit(data.getBytes());
             Assertions.assertEquals(
                     data, collector.getFuture().get().stream().map(String::new).findFirst().get());

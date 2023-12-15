@@ -135,7 +135,8 @@ public abstract class PubSubClientThroughputTests {
             System.out.println("Stop publishing");
             Assertions.assertEquals(true, future.get(), "Data mismatch on Subscriber occurred");
             System.out.println("Received number of messages: " + subscriber.getMessageCount());
-            System.out.println("Test duration: " + Duration.between(startAt, Instant.now()));
+            System.out.println(
+                    "Test execution time took: " + Duration.between(startAt, Instant.now()));
             Assertions.assertEquals(
                     true,
                     testCase.getExpectedMinReceivedMessageCount() <= subscriber.getMessageCount(),

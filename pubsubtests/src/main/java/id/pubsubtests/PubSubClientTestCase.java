@@ -17,6 +17,7 @@
  */
 package id.pubsubtests;
 
+import java.time.Duration;
 import java.util.function.Supplier;
 
 /**
@@ -27,27 +28,30 @@ import java.util.function.Supplier;
  *     href="https://junit.org/junit5/docs/current/user-guide/#writing-tests-parameterized-tests">Parameterized
  *     Tests</a>
  */
-public class PubSubClientTestCase {
+public class PubSubClientTestCase extends AbstractPubSubClientTestCase {
 
-    private Supplier<TestPubSubClient> clientFactory;
+    private Duration discoveryDuration;
+    private int queueSize;
 
-    public PubSubClientTestCase(Supplier<TestPubSubClient> clientFactory) {
-        this.clientFactory = clientFactory;
+    public PubSubClientTestCase(
+            String testCaseName,
+            Supplier<TestPubSubClient> clientFactory,
+            Duration discoveryDuration,
+            int queueSize) {
+        super(testCaseName, clientFactory);
+        this.discoveryDuration = discoveryDuration;
+        this.queueSize = queueSize;
     }
 
     /**
-     * Client factory which produce new instance of same client implementation with same
-     * configuration. This allows to test not only different {@link TestPubSubClient} client
-     * implementations but also how they act with different configurations.
-     *
-     * <p>For example, each client which implements Publisher/Subscriber model ( {@link
-     * TestPubSubClient}) may allow users to configure certain specific parameters (timeout, queue
-     * size, ...). With {@link PubSubClientTestCase} it is possible to test different combinations
-     * of these configurations (one instance of {@link PubSubClientTestCase} can return factory for
-     * clients which has timeout = 10 and queue size = 1, another instance may return factory for
-     * clients with timeout = 100 and queue size = 5, ...)
+     * How much time to wait before start publishing first message. Discovery time it is time needed
+     * for Publisher and Subscriber to discover each other.
      */
-    public Supplier<TestPubSubClient> clientFactory() {
-        return clientFactory;
+    public Duration getDiscoveryDuration() {
+        return discoveryDuration;
+    }
+
+    public int getPublisherQueueSize() {
+        return queueSize;
     }
 }
