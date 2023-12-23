@@ -22,8 +22,8 @@ import id.xfunction.concurrent.flow.SimpleSubscriber;
 import id.xfunction.concurrent.flow.SynchronousPublisher;
 import id.xfunction.lang.XThread;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Assertions;
@@ -55,9 +55,7 @@ public abstract class PubSubClientLatencyTests {
                 var publisherClient = testCase.clientFactory().get();
                 var publisher = new SynchronousPublisher<byte[]>()) {
             String topic = "testTopicLatency";
-            // allocate in advance to avoid ConcurrentModificationException
-            var latencyList =
-                    new ArrayList<Long>(testCase.getExpectedMinReceivedMessageCount() * 2);
+            var latencyList = new CopyOnWriteArrayList<Long>();
             var future =
                     new CompletableFuture<Void>()
                             .completeOnTimeout(
