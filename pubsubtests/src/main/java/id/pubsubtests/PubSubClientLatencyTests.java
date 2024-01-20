@@ -24,7 +24,6 @@ import id.xfunction.lang.XThread;
 import java.nio.ByteBuffer;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Nested;
@@ -90,20 +89,21 @@ public abstract class PubSubClientLatencyTests {
                     "Message size is too small: %s",
                     testCase.getMessageSizeInBytes());
             var data = "a".repeat(testCase.getMessageSizeInBytes() - Long.BYTES - 1).getBytes();
-            ForkJoinPool.commonPool()
-                    .submit(
-                            () -> {
-                                XThread.sleep(testCase.getDiscoveryDuration().toMillis());
-                                while (!future.isDone()) {
-                                    var buf = ByteBuffer.allocate(testCase.getMessageSizeInBytes());
-                                    long timestamp = System.currentTimeMillis();
-                                    buf.putLong(timestamp);
-                                    buf.put(data);
-                                    publisher.submit(buf.array());
-                                    System.out.println("published " + timestamp);
-                                }
-                                System.out.println("Stop publishing");
-                            });
+            new Thread() {
+                @Override
+                public void run() {
+                    XThread.sleep(testCase.getDiscoveryDuration().toMillis());
+                    while (!future.isDone()) {
+                        var buf = ByteBuffer.allocate(testCase.getMessageSizeInBytes());
+                        long timestamp = System.currentTimeMillis();
+                        buf.putLong(timestamp);
+                        buf.put(data);
+                        publisher.submit(buf.array());
+                        System.out.println("published " + timestamp);
+                    }
+                    System.out.println("Stop publishing");
+                }
+            }.start();
 
             // wait test to complete
             future.get();
