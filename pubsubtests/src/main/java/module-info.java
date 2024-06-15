@@ -16,8 +16,38 @@
  * limitations under the License.
  */
 /**
- * Generic tests for clients with Publisher/Subscriber model. Tests are performed against the client
- * itself. They validate that Publisher and Subscriber can interact with each other.
+ * Generic tests for clients with Publisher/Subscriber model.
+ *
+ * <ul>
+ *   <li>Publisher/Subscriber basic functionality tests
+ *   <li>Performance tests (latency, throughput)
+ *   <li>Testing of non-Java based clients
+ *   <li>Testing how clients from different vendors interact with each other
+ * </ul>
+ *
+ * <p>Same Publisher/Subscriber protocol can be implemented by different vendors. This result in
+ * different client implementations. Ideally if all such clients implement same Publisher/Subscriber
+ * protocol correctly then they should be able to interact with each other:
+ *
+ * <ul>
+ *   <li>when both subscriber and publisher are using same client implementation from the same
+ *       vendor
+ *   <li>when subscriber is using client implementation from VendorA and publisher is using client
+ *       implementation from Vendor2 (and vice-versa).
+ * </ul>
+ *
+ * <p><b>pubsubtests</b> allows to test all such combinations.
+ *
+ * <p>To run tests against particular client implementation users need to implement {@link
+ * id.pubsubtests.TestPubSubClient}.
+ *
+ * <p>By default <b>pubsubtests</b> performs tests against single {@link
+ * id.pubsubtests.TestPubSubClient} client implementation. They validate that Publisher and
+ * Subscriber which are using same implementation of {@link id.pubsubtests.TestPubSubClient} can
+ * interact with each other.
+ *
+ * <p>To test how different {@link id.pubsubtests.TestPubSubClient} client implementations interact
+ * with each other users need to use {@link id.pubsubtests.CompositePubSubClient}
  *
  * <p>The interaction between Publisher/Subscriber happens through {@link
  * id.pubsubtests.data.Message} and they all created with {@link
@@ -37,6 +67,11 @@
  *
  * <p>If some of the tests from any extended test classes are irrelevant to the client which is
  * being tested then their methods can be overridden in the actual test class itself.
+ *
+ * <h2>Testing of non-Java based clients</h2>
+ *
+ * <p>It is possible by implementing {@link id.pubsubtests.TestPubSubClient} and forwarding all
+ * calls to the external client (through JNI, FFM or stdin/stdout)
  *
  * @author lambdaprime intid@protonmail.com
  */

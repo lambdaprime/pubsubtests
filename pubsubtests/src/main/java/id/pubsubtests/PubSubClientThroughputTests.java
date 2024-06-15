@@ -76,7 +76,7 @@ public abstract class PubSubClientThroughputTests {
         public void onNext(Message item) {
             if (messageCount == 0 && !isReplayable) {
                 while (!Objects.equals(item, expectedData)) {
-                    dataGenerator.populateMessage(item);
+                    dataGenerator.populateMessage(expectedData);
                 }
             } else if (messageCount > 0) dataGenerator.populateMessage(expectedData);
             if (Objects.equals(item, expectedData)) {
