@@ -17,6 +17,8 @@
  */
 package id.pubsubtests;
 
+import id.pubsubtests.data.ByteMessageFactory;
+import id.pubsubtests.data.MessageFactory;
 import java.time.Duration;
 import java.util.function.Supplier;
 
@@ -46,7 +48,29 @@ public class PubSubClientThroughputTestCase extends AbstractPubSubClientTestCase
             Duration publishTimeout,
             boolean isReplayable,
             int expectedReceivedMessageCount) {
-        super(testCaseName, clientFactory);
+        this(
+                testCaseName,
+                clientFactory,
+                new ByteMessageFactory(),
+                messageSizeInBytes,
+                maxTestDuration,
+                maxCountOfPublishedMessages,
+                publishTimeout,
+                isReplayable,
+                expectedReceivedMessageCount);
+    }
+
+    public PubSubClientThroughputTestCase(
+            String testCaseName,
+            Supplier<TestPubSubClient> clientFactory,
+            MessageFactory messageFactory,
+            int messageSizeInBytes,
+            Duration maxTestDuration,
+            int maxCountOfPublishedMessages,
+            Duration publishTimeout,
+            boolean isReplayable,
+            int expectedReceivedMessageCount) {
+        super(testCaseName, clientFactory, messageFactory);
         this.maxTestDuration = maxTestDuration;
         this.maxCountOfPublishedMessages = maxCountOfPublishedMessages;
         this.messageSizeInBytes = messageSizeInBytes;

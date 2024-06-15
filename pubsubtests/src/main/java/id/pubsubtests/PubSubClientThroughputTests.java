@@ -17,13 +17,14 @@
  */
 package id.pubsubtests;
 
+import id.pubsubtests.data.Message;
+import id.pubsubtests.data.RandomMessageGenerator;
 import id.xfunction.concurrent.flow.SimpleSubscriber;
 import id.xfunction.concurrent.flow.SynchronousPublisher;
 import id.xfunction.lang.XThread;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.Arrays;
-import java.util.Random;
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Assertions;
@@ -51,35 +52,34 @@ import org.junit.jupiter.params.provider.MethodSource;
 @Nested
 public abstract class PubSubClientThroughputTests {
 
-    private static class MySubscriber extends SimpleSubscriber<byte[]> {
+    private static class MySubscriber extends SimpleSubscriber<Message> {
         private CompletableFuture<Boolean> future;
-        private Random dataGenerator;
-        private byte[] expectedData;
+        private RandomMessageGenerator dataGenerator;
+        private Message expectedData;
         private int messageCount;
         private int maxPublishedMessages;
         private boolean isReplayable;
 
         public MySubscriber(
                 CompletableFuture<Boolean> future,
-                long seed,
+                RandomMessageGenerator dataGenerator,
                 boolean isReplayable,
-                int expectedMessageSizeInBytes,
                 int maxPublishedMessages) {
             this.future = future;
             this.isReplayable = isReplayable;
             this.maxPublishedMessages = maxPublishedMessages;
-            this.dataGenerator = new Random(seed);
-            expectedData = new byte[expectedMessageSizeInBytes];
+            this.dataGenerator = dataGenerator;
+            expectedData = dataGenerator.nextRandomMessage();
         }
 
         @Override
-        public void onNext(byte[] item) {
+        public void onNext(Message item) {
             if (messageCount == 0 && !isReplayable) {
-                while (!Arrays.equals(item, expectedData)) {
-                    dataGenerator.nextBytes(expectedData);
+                while (!Objects.equals(item, expectedData)) {
+                    dataGenerator.populateMessage(item);
                 }
-            } else dataGenerator.nextBytes(expectedData);
-            if (Arrays.equals(item, expectedData)) {
+            } else if (messageCount > 0) dataGenerator.populateMessage(expectedData);
+            if (Objects.equals(item, expectedData)) {
                 messageCount++;
                 System.out.println("Received message" + messageCount);
                 if (future.isDone() || messageCount == maxPublishedMessages) {
@@ -103,7 +103,7 @@ public abstract class PubSubClientThroughputTests {
     public void test_throughput(PubSubClientThroughputTestCase testCase) throws Exception {
         try (var subscriberClient = testCase.clientFactory().get();
                 var publisherClient = testCase.clientFactory().get();
-                var publisher = new SynchronousPublisher<byte[]>()) {
+                var publisher = new SynchronousPublisher<Message>()) {
             String topic = "testTopic1";
             var seed = System.currentTimeMillis();
             var startAt = Instant.now();
@@ -117,17 +117,18 @@ public abstract class PubSubClientThroughputTests {
             var subscriber =
                     new MySubscriber(
                             future,
-                            seed,
+                            testCase.messageFactory()
+                                    .createGenerator(seed, testCase.getMessageSizeInBytes()),
                             testCase.isReplayable(),
-                            testCase.getMessageSizeInBytes(),
                             testCase.getMaxCountOfPublishedMessages());
             publisherClient.publish(topic, publisher);
             subscriberClient.subscribe(topic, subscriber);
-            var dataGenerator = new Random(seed);
+            var dataGenerator =
+                    testCase.messageFactory()
+                            .createGenerator(seed, testCase.getMessageSizeInBytes());
             while (!future.isDone() && messageCount > 0) {
                 messageCount--;
-                var data = new byte[testCase.getMessageSizeInBytes()];
-                dataGenerator.nextBytes(data);
+                var data = dataGenerator.nextRandomMessage();
                 publisher.submit(data);
                 System.out.println("Sent message");
                 XThread.sleep(testCase.getPublishTimeout().toMillis());

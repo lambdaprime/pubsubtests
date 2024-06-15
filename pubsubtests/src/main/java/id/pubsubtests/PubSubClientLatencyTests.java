@@ -17,6 +17,7 @@
  */
 package id.pubsubtests;
 
+import id.pubsubtests.data.Message;
 import id.xfunction.Preconditions;
 import id.xfunction.concurrent.flow.SimpleSubscriber;
 import id.xfunction.concurrent.flow.SynchronousPublisher;
@@ -52,7 +53,7 @@ public abstract class PubSubClientLatencyTests {
     public void test_latency(PubSubClientLatencyTestCase testCase) throws Exception {
         try (var subscriberClient = testCase.clientFactory().get();
                 var publisherClient = testCase.clientFactory().get();
-                var publisher = new SynchronousPublisher<byte[]>()) {
+                var publisher = new SynchronousPublisher<Message>()) {
             String topic = "testTopicLatency";
             var latencyList = new CopyOnWriteArrayList<Long>();
             var future =
@@ -62,12 +63,12 @@ public abstract class PubSubClientLatencyTests {
                                     testCase.getMaxTestDuration().toMillis(),
                                     TimeUnit.MILLISECONDS);
             var subscriber =
-                    new SimpleSubscriber<byte[]>() {
+                    new SimpleSubscriber<Message>() {
                         private long previousTimestamp;
 
                         @Override
-                        public void onNext(byte[] item) {
-                            var timestamp = ByteBuffer.wrap(item).getLong();
+                        public void onNext(Message item) {
+                            var timestamp = ByteBuffer.wrap(item.getBody()).getLong();
                             var now = System.currentTimeMillis();
                             var l = now - timestamp;
                             System.out.format(
@@ -98,7 +99,7 @@ public abstract class PubSubClientLatencyTests {
                         long timestamp = System.currentTimeMillis();
                         buf.putLong(timestamp);
                         buf.put(data);
-                        publisher.submit(buf.array());
+                        publisher.submit(testCase.messageFactory().create(buf.array()));
                         System.out.println("published " + timestamp);
                     }
                     System.out.println("Stop publishing");

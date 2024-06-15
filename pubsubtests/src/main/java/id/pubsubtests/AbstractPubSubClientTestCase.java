@@ -17,6 +17,8 @@
  */
 package id.pubsubtests;
 
+import id.pubsubtests.data.ByteMessageFactory;
+import id.pubsubtests.data.MessageFactory;
 import java.util.function.Supplier;
 
 /**
@@ -31,11 +33,20 @@ public abstract class AbstractPubSubClientTestCase {
 
     private Supplier<TestPubSubClient> clientFactory;
     private String testCaseName;
+    private MessageFactory messageFactory;
 
     protected AbstractPubSubClientTestCase(
             String testCaseName, Supplier<TestPubSubClient> clientFactory) {
+        this(testCaseName, clientFactory, new ByteMessageFactory());
+    }
+
+    protected AbstractPubSubClientTestCase(
+            String testCaseName,
+            Supplier<TestPubSubClient> clientFactory,
+            MessageFactory messageFactory) {
         this.testCaseName = testCaseName;
         this.clientFactory = clientFactory;
+        this.messageFactory = messageFactory;
     }
 
     /**
@@ -52,6 +63,10 @@ public abstract class AbstractPubSubClientTestCase {
      */
     public Supplier<TestPubSubClient> clientFactory() {
         return clientFactory;
+    }
+
+    public MessageFactory messageFactory() {
+        return messageFactory;
     }
 
     public String name() {

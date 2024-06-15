@@ -1,5 +1,5 @@
 /*
- * Copyright 2022 pubsubtests project
+ * Copyright 2024 pubsubtests project
  * 
  * Website: https://github.com/lambdaprime/pubsubtests
  * 
@@ -15,20 +15,25 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package id.pubsubtests;
-
-import id.pubsubtests.data.Message;
-import java.util.concurrent.Flow.Publisher;
-import java.util.concurrent.Flow.Subscriber;
+package id.pubsubtests.data;
 
 /**
  * @author lambdaprime intid@protonmail.com
  */
-public interface TestPubSubClient extends AutoCloseable {
-    void subscribe(String topic, Subscriber<Message> subscriber);
-
-    void publish(String topic, Publisher<Message> publisher);
+public class ByteMessageFactory implements MessageFactory {
 
     @Override
-    void close();
+    public Message create(String body) {
+        return new Message(body);
+    }
+
+    @Override
+    public Message create(byte[] body) {
+        return new Message(body);
+    }
+
+    @Override
+    public RandomMessageGenerator createGenerator(long seed, int messageSizeInBytes) {
+        return new RandomMessageGenerator(this, seed, messageSizeInBytes);
+    }
 }

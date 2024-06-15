@@ -19,6 +19,12 @@
  * Generic tests for clients with Publisher/Subscriber model. Tests are performed against the client
  * itself. They validate that Publisher and Subscriber can interact with each other.
  *
+ * <p>The interaction between Publisher/Subscriber happens through {@link
+ * id.pubsubtests.data.Message} and they all created with {@link
+ * id.pubsubtests.data.MessageFactory}. Some tests allow users to specify their own {@link
+ * id.pubsubtests.data.MessageFactory}. This allows users to redefine messages behavior: equals, how
+ * they are created and generated etc.
+ *
  * <p>To use tests:
  *
  * <ul>
@@ -36,6 +42,7 @@
  */
 open module pubsubtests {
     exports id.pubsubtests;
+    exports id.pubsubtests.data;
 
     requires id.xfunction;
     requires org.junit.jupiter.api;

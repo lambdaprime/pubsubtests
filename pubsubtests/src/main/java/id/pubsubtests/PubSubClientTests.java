@@ -17,6 +17,7 @@
  */
 package id.pubsubtests;
 
+import id.pubsubtests.data.Message;
 import id.xfunction.concurrent.flow.CollectorSubscriber;
 import id.xfunction.concurrent.flow.FixedCollectorSubscriber;
 import id.xfunction.concurrent.flow.SynchronousPublisher;
@@ -59,14 +60,13 @@ public abstract class PubSubClientTests {
     public void test_publish_when_no_subscribers(PubSubClientTestCase testCase) {
         try (var publisherClient = testCase.clientFactory().get(); ) {
             String topic = "testTopic1";
-            var publisher = new SubmissionPublisher<byte[]>(ForkJoinPool.commonPool(), 1);
-            String data = "hello";
+            var publisher = new SubmissionPublisher<Message>(ForkJoinPool.commonPool(), 1);
+            var data = testCase.messageFactory().create("hello");
             publisherClient.publish(topic, publisher);
             var queueSize = testCase.getPublisherQueueSize() + publisher.getMaxBufferCapacity();
             // if messages are not dropped then publisher will eventually stop accepting messages
             // method offer returns false when message cannot be added
-            while (publisher.offer(data.getBytes(), 10, TimeUnit.MILLISECONDS, null) >= 0)
-                queueSize--;
+            while (publisher.offer(data, 10, TimeUnit.MILLISECONDS, null) >= 0) queueSize--;
             // expect no messages are lost
             Assertions.assertEquals(0, queueSize);
         }
@@ -82,13 +82,13 @@ public abstract class PubSubClientTests {
         try (var subscriberClient = testCase.clientFactory().get();
                 var publisherClient = testCase.clientFactory().get(); ) {
             String topic = "testTopic1";
-            var publisher = new SubmissionPublisher<byte[]>();
+            var publisher = new SubmissionPublisher<Message>();
             publisherClient.publish(topic, publisher);
             var subscribers =
                     Stream.generate(
                                     () ->
                                             new FixedCollectorSubscriber<>(
-                                                    new ArrayList<byte[]>(), maxNumOfMessages))
+                                                    new ArrayList<Message>(), maxNumOfMessages))
                             .limit(3)
                             .toList();
             subscribers.forEach(sub -> subscriberClient.subscribe(topic, sub));
@@ -100,12 +100,16 @@ public abstract class PubSubClientTests {
                                 while (expected.size() < maxNumOfMessages) {
                                     var data = "hello " + c++;
                                     expected.add(data);
-                                    publisher.submit(data.getBytes());
+                                    publisher.submit(testCase.messageFactory().create(data));
                                 }
                                 publisher.close();
                             });
             for (var sub : subscribers) {
-                var data = sub.getFuture().get().stream().map(String::new).toList();
+                var data =
+                        sub.getFuture().get().stream()
+                                .map(Message::getBody)
+                                .map(String::new)
+                                .toList();
                 Assertions.assertEquals(expected, data);
             }
         }
@@ -120,20 +124,25 @@ public abstract class PubSubClientTests {
                 var subscriberClient = testCase.clientFactory().get(); ) {
             String topic = "testTopic1";
             String data = "hello";
-            var publisher = new SubmissionPublisher<byte[]>();
+            var publisher = new SubmissionPublisher<Message>();
             publisherClient.publish(topic, publisher);
-            var collector = new FixedCollectorSubscriber<>(new ArrayList<byte[]>(), 1);
+            var collector = new FixedCollectorSubscriber<>(new ArrayList<Message>(), 1);
             subscriberClient.subscribe(topic, collector);
             ForkJoinPool.commonPool()
                     .execute(
                             () -> {
                                 while (!collector.getFuture().isDone()) {
-                                    publisher.submit(data.getBytes());
+                                    publisher.submit(testCase.messageFactory().create(data));
                                 }
                                 publisher.close();
                             });
             Assertions.assertEquals(
-                    data, collector.getFuture().get().stream().map(String::new).findFirst().get());
+                    data,
+                    collector.getFuture().get().stream()
+                            .map(Message::getBody)
+                            .map(String::new)
+                            .findFirst()
+                            .get());
         }
     }
 
@@ -143,9 +152,9 @@ public abstract class PubSubClientTests {
         try (var subscriberClient = testCase.clientFactory().get();
                 var publisherClient = testCase.clientFactory().get(); ) {
             String topic = "/testTopic1";
-            var publisher = new SynchronousPublisher<byte[]>();
+            var publisher = new SynchronousPublisher<Message>();
             publisherClient.publish(topic, publisher);
-            var collector = new FixedCollectorSubscriber<>(new ArrayList<byte[]>(), 50);
+            var collector = new FixedCollectorSubscriber<>(new ArrayList<Message>(), 50);
             subscriberClient.subscribe(topic, collector);
             ForkJoinPool.commonPool()
                     .execute(
@@ -154,11 +163,12 @@ public abstract class PubSubClientTests {
                                 while (!collector.getFuture().isDone()) {
                                     var msg = "" + c++;
                                     System.out.println("          " + msg);
-                                    publisher.submit(msg.getBytes());
+                                    publisher.submit(testCase.messageFactory().create(msg));
                                 }
                             });
             var received =
                     collector.getFuture().get().stream()
+                            .map(Message::getBody)
                             .map(String::new)
                             .mapToInt(Integer::parseInt)
                             .toArray();
@@ -180,15 +190,20 @@ public abstract class PubSubClientTests {
         try (var subscriberClient = testCase.clientFactory().get();
                 var publisherClient = testCase.clientFactory().get(); ) {
             String topic = "testTopic1";
-            var publisher = new SubmissionPublisher<byte[]>();
+            var publisher = new SubmissionPublisher<Message>();
             String data = "hello";
             publisherClient.publish(topic, publisher);
-            var collector = new FixedCollectorSubscriber<>(new ArrayList<byte[]>(), 1);
+            var collector = new FixedCollectorSubscriber<>(new ArrayList<Message>(), 1);
             subscriberClient.subscribe(topic, collector);
             XThread.sleep(testCase.getDiscoveryDuration().toMillis());
-            publisher.submit(data.getBytes());
+            publisher.submit(testCase.messageFactory().create(data));
             Assertions.assertEquals(
-                    data, collector.getFuture().get().stream().map(String::new).findFirst().get());
+                    data,
+                    collector.getFuture().get().stream()
+                            .map(Message::getBody)
+                            .map(String::new)
+                            .findFirst()
+                            .get());
         }
     }
 
@@ -199,23 +214,23 @@ public abstract class PubSubClientTests {
         try (var subscriberClient = testCase.clientFactory().get();
                 var publisherClient1 = testCase.clientFactory().get();
                 var publisherClient2 = testCase.clientFactory().get();
-                var publisher1 = new SubmissionPublisher<byte[]>();
-                var publisher2 = new SubmissionPublisher<byte[]>()) {
+                var publisher1 = new SubmissionPublisher<Message>();
+                var publisher2 = new SubmissionPublisher<Message>()) {
             publisherClient1.publish(topic, publisher1);
             publisherClient2.publish(topic, publisher2);
             var collector = new FixedCollectorSubscriber<>(new HashSet<String>(), 2);
             var trans =
-                    new TransformSubscriber<byte[], String>(
-                            collector, data -> Optional.of(new String(data)));
+                    new TransformSubscriber<Message, String>(
+                            collector, data -> Optional.of(new String(data.getBody())));
             subscriberClient.subscribe(topic, trans);
             var executor = Executors.newSingleThreadExecutor();
             executor.execute(
                     () -> {
                         while (!collector.getFuture().isDone()) {
-                            var msg1 = "1";
-                            var msg2 = "2";
-                            publisher1.submit(msg1.getBytes());
-                            publisher2.submit(msg2.getBytes());
+                            var msg1 = testCase.messageFactory().create("1");
+                            var msg2 = testCase.messageFactory().create("2");
+                            publisher1.submit(msg1);
+                            publisher2.submit(msg2);
                         }
                     });
             Assertions.assertEquals(
@@ -231,13 +246,13 @@ public abstract class PubSubClientTests {
     @ParameterizedTest
     @MethodSource("dataProvider")
     public void test_publisher_on_close(PubSubClientTestCase testCase) throws Exception {
-        var received = new ArrayList<byte[]>();
+        var received = new ArrayList<Message>();
         var collector = new CollectorSubscriber<>(received);
         try (var subscriberClient = testCase.clientFactory().get();
                 var publisherClient = testCase.clientFactory().get();
                 // disable any buffering for user publisher so that all messages go directly to
                 // client
-                var publisher = new SynchronousPublisher<byte[]>()) {
+                var publisher = new SynchronousPublisher<Message>()) {
             String topic = "testTopic1";
             String data = "hello";
             publisherClient.publish(topic, publisher);
@@ -245,12 +260,13 @@ public abstract class PubSubClientTests {
             var c = 0;
             while (received.isEmpty()) {
                 for (int i = 1; i < 10; i++) {
-                    publisher.submit((data + ++c).getBytes());
+                    publisher.submit(testCase.messageFactory().create(data + ++c));
                 }
                 XThread.sleep(100);
             }
             publisherClient.close();
-            Assertions.assertEquals(data + c, new String(received.get(received.size() - 1)));
+            Assertions.assertEquals(
+                    data + c, new String(received.get(received.size() - 1).getBody()));
         }
     }
 }
