@@ -27,6 +27,7 @@ import java.time.Instant;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -96,6 +97,14 @@ public abstract class PubSubClientThroughputTests {
         public int getMessageCount() {
             return messageCount;
         }
+    }
+
+    @AfterEach
+    public void clean() {
+        // clean up all unused objects
+        // this allow users to monitor memory of each test separately
+        // without any leftovers in the heap from the previous tests
+        System.gc();
     }
 
     @ParameterizedTest

@@ -26,6 +26,7 @@ import java.nio.ByteBuffer;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -47,6 +48,14 @@ import org.junit.jupiter.params.provider.MethodSource;
  */
 @Nested
 public abstract class PubSubClientLatencyTests {
+
+    @AfterEach
+    public void clean() {
+        // clean up all unused objects
+        // this allow users to monitor memory of each test separately
+        // without any leftovers in the heap from the previous tests
+        System.gc();
+    }
 
     @ParameterizedTest
     @MethodSource("dataProvider")
