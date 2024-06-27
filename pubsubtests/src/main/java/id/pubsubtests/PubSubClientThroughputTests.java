@@ -60,14 +60,17 @@ public abstract class PubSubClientThroughputTests {
         private int messageCount;
         private int maxPublishedMessages;
         private boolean isReplayable;
+        private MessageOrder expectedOrder;
 
         public MySubscriber(
                 CompletableFuture<Boolean> future,
                 RandomMessageGenerator dataGenerator,
                 boolean isReplayable,
+                MessageOrder expectedOrder,
                 int maxPublishedMessages) {
             this.future = future;
             this.isReplayable = isReplayable;
+            this.expectedOrder = expectedOrder;
             this.maxPublishedMessages = maxPublishedMessages;
             this.dataGenerator = dataGenerator;
             expectedData = dataGenerator.nextRandomMessage();
@@ -76,21 +79,28 @@ public abstract class PubSubClientThroughputTests {
         @Override
         public void onNext(Message item) {
             if (messageCount == 0 && !isReplayable) {
-                while (!Objects.equals(item, expectedData)) {
-                    dataGenerator.populateMessage(expectedData);
-                }
+                skipAll(item);
             } else if (messageCount > 0) dataGenerator.populateMessage(expectedData);
-            if (Objects.equals(item, expectedData)) {
+            var isEqual = Objects.equals(item, expectedData);
+            if (!isEqual && expectedOrder == MessageOrder.STRICT_ASCENDING) {
+                System.out.println("Data mismatch after message " + messageCount);
+                subscription.cancel();
+                future.complete(false);
+            } else {
+                skipAll(item);
                 messageCount++;
                 System.out.println("Received message" + messageCount);
                 if (future.isDone() || messageCount == maxPublishedMessages) {
                     subscription.cancel();
                     future.complete(true);
                 } else subscription.request(1);
-            } else {
-                System.out.println("Data mismatch after message " + messageCount);
-                subscription.cancel();
-                future.complete(false);
+            }
+        }
+
+        /** Keep generating messages until reaching target message */
+        private void skipAll(Message target) {
+            while (!Objects.equals(target, expectedData)) {
+                dataGenerator.populateMessage(expectedData);
             }
         }
 
@@ -129,6 +139,7 @@ public abstract class PubSubClientThroughputTests {
                             testCase.messageFactory()
                                     .createGenerator(seed, testCase.getMessageSizeInBytes()),
                             testCase.isReplayable(),
+                            testCase.getOrder(),
                             testCase.getMaxCountOfPublishedMessages());
             publisherClient.publish(topic, publisher);
             subscriberClient.subscribe(topic, subscriber);

@@ -38,6 +38,7 @@ public class PubSubClientThroughputTestCase extends AbstractPubSubClientTestCase
     private int expectedReceivedMessageCount;
     private Duration publishTimeout;
     private boolean isReplayable;
+    private MessageOrder order;
 
     public PubSubClientThroughputTestCase(
             String testCaseName,
@@ -57,6 +58,7 @@ public class PubSubClientThroughputTestCase extends AbstractPubSubClientTestCase
                 maxCountOfPublishedMessages,
                 publishTimeout,
                 isReplayable,
+                MessageOrder.STRICT_ASCENDING,
                 expectedReceivedMessageCount);
     }
 
@@ -69,6 +71,7 @@ public class PubSubClientThroughputTestCase extends AbstractPubSubClientTestCase
             int maxCountOfPublishedMessages,
             Duration publishTimeout,
             boolean isReplayable,
+            MessageOrder order,
             int expectedReceivedMessageCount) {
         super(testCaseName, clientFactory, messageFactory);
         this.maxTestDuration = maxTestDuration;
@@ -77,6 +80,7 @@ public class PubSubClientThroughputTestCase extends AbstractPubSubClientTestCase
         this.publishTimeout = publishTimeout;
         this.isReplayable = isReplayable;
         this.expectedReceivedMessageCount = expectedReceivedMessageCount;
+        this.order = order;
     }
 
     /** Published messages are replayed to late Subscribers */
@@ -102,5 +106,9 @@ public class PubSubClientThroughputTestCase extends AbstractPubSubClientTestCase
 
     public Duration getPublishTimeout() {
         return publishTimeout;
+    }
+
+    public MessageOrder getOrder() {
+        return order;
     }
 }
