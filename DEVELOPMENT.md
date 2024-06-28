@@ -1,8 +1,16 @@
-Building module locally and making changes to it (this is optional and not intended for users).
+# Build
+
+Building  module locally and making changes to it (this is optional and not intended for users).
+
+## With Gradle
+
+``` bash
+gradle clean build
+```
 
 ## With Eclipse
 
-- Build eclipse projects:
+- Build Eclipse projects:
 
 ``` bash
 gradle eclipse

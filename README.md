@@ -24,3 +24,6 @@ dependencies {
 
 [Development](DEVELOPMENT.md)
 
+# Contacts
+
+lambdaprime <intid@protonmail.com>

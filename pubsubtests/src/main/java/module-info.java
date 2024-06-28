@@ -31,9 +31,9 @@
  *
  * <ul>
  *   <li>when both subscriber and publisher are using same client implementation from the same
- *       vendor
- *   <li>when subscriber is using client implementation from VendorA and publisher is using client
- *       implementation from Vendor2 (and vice-versa).
+ *       vendor A
+ *   <li>when subscriber is using client implementation from vendor A and publisher is using client
+ *       implementation from vendor B (and vice-versa).
  * </ul>
  *
  * <p><b>pubsubtests</b> allows to test all such combinations.
@@ -50,23 +50,27 @@
  * with each other users need to use {@link id.pubsubtests.CompositePubSubClient}
  *
  * <p>The interaction between Publisher/Subscriber happens through {@link
- * id.pubsubtests.data.Message} and they all created with {@link
+ * id.pubsubtests.data.Message} and they all are created with {@link
  * id.pubsubtests.data.MessageFactory}. Some tests allow users to specify their own {@link
  * id.pubsubtests.data.MessageFactory}. This allows users to redefine messages behavior: equals, how
  * they are created and generated etc.
  *
- * <p>To use tests:
+ * <h2>Usage</h2>
+ *
+ * <p>Given Publisher/Subscriber client called MyPubSubClient. To run <b>pubsubtests</b> for such
+ * client users need:
  *
  * <ul>
- *   <li>Using client which is going to be tested implement {@link id.pubsubtests.TestPubSubClient}
- *   <li>Create a JUnit test class for the client and let it extend any of the available test
- *       classes: {@link id.pubsubtests.PubSubClientTests}, {@link
- *       id.pubsubtests.PubSubClientThroughputTests}
+ *   <li>Implement {@link id.pubsubtests.TestPubSubClient} (using MyPubSubClient)
+ *   <li>Create a JUnit test class for the client (ex. MyPubSubClientTests) and let it extend any of
+ *       the available <b>pubsubtests</b> test classes (ex. {@link
+ *       id.pubsubtests.PubSubClientTests}, {@link id.pubsubtests.PubSubClientThroughputTests}, ...)
  *   <li>Define dataProvider method (see extended test class documentation for details)
  * </ul>
  *
  * <p>If some of the tests from any extended test classes are irrelevant to the client which is
- * being tested then their methods can be overridden in the actual test class itself.
+ * being tested (ex. MyPubSubClient) then such test methods can be overridden in the actual test
+ * class itself (ex. MyPubSubClientTests) with empty method body.
  *
  * <h2>Testing of non-Java based clients</h2>
  *

@@ -25,10 +25,15 @@ import java.util.concurrent.Flow.Subscriber;
  * Implementation of {@link TestPubSubClient} which delegates all subscribe and publish calls to
  * separate instances of {@link TestPubSubClient}
  *
- * <p>Ordinary TestPubSubClient allows to test between itself.
+ * <p>Ordinary {@link TestPubSubClient} allows to run <b>pubsubtests</b> against {@link
+ * #publish(String, Publisher)} and {@link #subscribe(String, Subscriber)} methods of the same
+ * client implementation.
  *
- * <p>This allows to test how two different implemnetations of Pub/Sub client interact with each
- * other.
+ * <p>This class on the other hand allows to run <b>pubsubtests</b> against {@link #publish(String,
+ * Publisher)} and {@link #subscribe(String, Subscriber)} methods of different clients
+ * implementations. This primarily helps to test if Publisher/Subscriber clients from different
+ * vendors can interact with each other (Subscriber from vendor A can be subscribed to Publisher
+ * from vendor B and vice-versa).
  *
  * @author lambdaprime intid@protonmail.com
  */
